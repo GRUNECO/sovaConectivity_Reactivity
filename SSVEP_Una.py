@@ -1,99 +1,39 @@
 import mne
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy.signal as signal;
+import scipy.signal as signal
+from sovaflow.flow import createRaw
 
-#Importación de un EDF
-fnameE="C:\Sujetos\Mauro\PIS"
-raw= mne.io.read_raw_edf(fnameE,preload=True) #Función de lector para datos FIF sin procesar.
-#los datos se precargarán en la memoria (rápido, requiere una gran cantidad de memoria).
-raw.plot(duration=10.0,start=20.0,n_channels=10,title='EEG Original')
-#disenando usando la tabla
-
-# Datos crudos 
-data, times = raw[:, :] # Obtiene datos crudos de la señal
-data =data*1000000 # Se escala con fines comparativos con matlab 
-totalData=len(times) 
-
-plt.plot(times,data[0,:]);
-plt.ylabel('Amplitud ');
-plt.xlabel('Tiempo');
-plt.title('Senal');
-plt.grid(True)
-#plt.xlim([0,30]);
-plt.show()
-
-#%%
-
-low_fre=1 # Frecuencia baja del filtro
-high_frec=40 # Frecuencia alta del filtro 
-
-#Filtrado entre 1 y 100 Hz
-raw=raw.filter(low_fre,high_frec,fir_design='firwin', method='fir', filter_length='auto', phase='zero', fir_window='hamming')
-raw.plot(duration=10.0,start=20.0,n_channels=10,title='EEG Original')
-data, times = raw[:, :] 
-
-##Filtrado entre 55 y 65 Hz
-#raw=raw.filter(55,65,fir_design='firwin', method='fir', filter_length='auto', phase='zero', fir_window='hamming')
-#raw.plot(duration=10.0,start=20.0,n_channels=10,title='EEG Original')
-#data, times = raw[:, :] 
-
-#Filtrado nocht
-#raw= raw.notch_filter(60)
-#data, times = raw[:, :] 
+#Importación 
+fnameE=r"E:\Academico\Universidad\Posgrado\Tesis\Datos\BASESDEDATOS\BIOMARCADORES_BIDS\derivatives\sovaharmony\sub-CTR001\ses-V0\eeg\sub-CTR001_ses-V0_task-OE_desc-norm_eeg"
+raw=mne.read_epochs(fnameE + '.fif', verbose='error')
+data=raw.copy()
+(e, c, t) = raw._data.shape
+da_eeg_cont = np.reshape(data,(c,e*t),order='F')
+default_channels = ['FP1', 'FPZ', 'FP2', 'AF3', 'AF4', 'F7', 'F5', 'F3', 'F1', 'FZ', 'F2', 'F4', 'F6', 'F8', 'FC5', 'FC3', 'FC1', 'FCZ', 'FC2', 'FC4', 'FC6', 'T7', 'C5', 'C3', 'C1', 'CZ', 'C2', 'C4', 'C6', 'T8', 'TP7', 'CP5', 'CP3', 'CP1', 'CPZ', 'CP2', 'CP4', 'CP6', 'TP8', 'P7', 'P5', 'P3', 'P1', 'PZ', 'P2', 'P4', 'P6', 'P8', 'PO7', 'PO5', 'PO3', 'POZ', 'PO4', 'PO6', 'PO8', 'O1', 'OZ', 'O2']
+signal_ch = createRaw(da_eeg_cont,data.info['sfreq'],ch_names=data.info['ch_names'])
+data_signal = signal_ch.copy()
 
 
-#%%
-def ssvepMax (Bipolar,numDataLow,numDataHigh,fs,name):
-    #Limpieza de muestras
-    deleteL=numDataLow # 250 Eliminar datos iniciales 
-    deleteH= len(Bipolar)-numDataHigh # 500 Eliminar datos finales 
-    
-    Bipolar = Bipolar[deleteL:deleteH]
-    
+def psdMax (data):   
     #periodograma de Welch
-    nblock = 2048;
-    overlap = nblock/2;
-    win = signal.hamming(int(nblock),True);
-    
-    
-    f, Pxx = signal.welch(Bipolar, fs, window=win, noverlap=overlap, nfft=nblock, return_onesided=True);
-    plt.plot(f[f<70],Pxx[f<70]);
-    plt.ylabel('Amplitud ');
-    plt.xlabel('Frecuencia');
-    plt.title('Senal');
+    nblock = data.info['sfreq']
+    overlap = data.info['sfreq']/2
+    win = signal.hamming(int(nblock),True)
+        
+    f, Pxx = signal.welch(data[i,:], data.info['sfreq'], window=win, noverlap=overlap, nfft=nblock, return_onesided=True)
+    plt.plot(f[f<20],Pxx[f<20])
+    plt.ylabel('Amplitud ')
+    plt.xlabel('Frecuencia')
+    plt.title('Senal')
     plt.grid(True)
-    plt.show();
-    
-    # Estandarización de los datos 
-    standarDes = np.std(Pxx, dtype=np.float64)
-    media = np.median(Pxx)
-    PxxS= (Pxx-media)/standarDes
-    plt.figure()
-    plt.plot(f[f<30],PxxS[f<30]);
-    plt.ylabel('Amplitude');
-    plt.xlabel('Frequency (Hz)');
-    plt.title('Signal '+ name);
-    plt.grid(True)
-    plt.show();
-    
-    
-    position = np.where((f >= 9.5) & (f <= 10.5)) # Busca la posición de los valores donde la frecuencia sea 10 o cercana
-    maxValue = np.max(PxxS[position[0]])
+    plt.show()
+        
+    position = np.where((f >= 8) & (f <= 13)) 
+    maxValue = np.max(Pxx[position[0]])
     
     return maxValue
-#%%
-fs = 250 # Frecuencia de muestreo
-indexMatrix= ['Oz-FCz','PO8-FCz','PO7-FCz','I1+I2-FCz','PO8+P4-FCz','PO8+P3-FCz'] 
-signalBipolar = np.zeros((6,totalData))
-ssvepValue = np.zeros((6,2))
 
-signalBipolar[0,:] = data[0,:]-data[7,:] # Resta de Oz-FCz
-signalBipolar[1,:] = data[6,:]-data[7,:] # Resta de PO8-FCz
-signalBipolar[2,:] = data[5,:]-data[7,:] # Resta de PO7-FCz
-signalBipolar[3,:] = data[3,:]+data[4,:]-data[7,:] # Resta de I1+I2-FCz
-signalBipolar[4,:] = data[6,:]+data[2,:]-data[7,:] # Resta de PO8+P4-FCz
-signalBipolar[5,:] = data[5,:]+data[1,:]-data[7,:] # Resta de PO7+P3-FCz
+for i in range(len(data.info['ch_names'])):
+    ssvepValue = psdMax(signal_ch)
 
-for i in range(0,6):
-    ssvepValue[i,0] = ssvepMax(signalBipolar[i,:],250,500,fs,indexMatrix[i])

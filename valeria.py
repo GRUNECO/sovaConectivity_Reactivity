@@ -9,7 +9,7 @@ media_n=[]
 #Se halla el PSD para ciclos normales
 for i in range(0,len(datos)):
   #Estimación de la densidad espectral con una ventana tipo hamming. 
-  fn, Pn = signal.welch( d_filtrado[i],fm, 'hamming',2*fm, scaling='density')
+  fn, Pn = signal.welch(d_filtrado[i],fm, 'hamming',2*fm, scaling='density')
   px_n.append(Pn)
   f_n.append(fn)
 
