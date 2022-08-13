@@ -7,8 +7,9 @@ from sovaflow.flow import createRaw
 #Importación 
 fnameE=r"E:\Academico\Universidad\Posgrado\Tesis\Datos\BASESDEDATOS\BIOMARCADORES_BIDS\derivatives\sovaharmony\sub-CTR001\ses-V0\eeg\sub-CTR001_ses-V0_task-OE_desc-norm_eeg"
 raw=mne.read_epochs(fnameE + '.fif', verbose='error')
-raw_welch=mne.time_frequency.psd_array_welch(raw._data, sfreq=256)
+raw_welch=mne.time_frequency.psd_array_welch(raw._data, sfreq=256) #Revisar fs
 #raw_psd=mne.time_frequency.psd_array_multitaper(raw._data, sfreq=1000)
+new_ch=np.intersect1d(raw.ch_names,['OZ','O1','O2'])
 
 Pxx=raw_welch[0]
 f=raw_welch[1]
