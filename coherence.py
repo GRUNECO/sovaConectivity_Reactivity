@@ -8,7 +8,7 @@ import itertools as it
 import pandas as pd
 
 def coherencia(senal,fe):
-  nperseg = 
+  nperseg = fs #no recuerdo que va aqui
   noverlap = int(nperseg/2)
   fs = 250
   electrodos = senal.shape[1]
