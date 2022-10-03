@@ -558,7 +558,7 @@ def Percentage_Modulation_Energy(Energy):
     else:
         raise DoingError('The signal variable is not an array!!')
     
-def Amplitude_Modulation_Analysis(Signal, Fs, Bands=[(0.5,4),(4,8),(8,12),(12,30),(30,100)], Method='filter' , Filt='FIR_filter'):
+def Amplitude_Modulation_Analysis(Signal, Fs, Bands=[[1.5,6],[6,8.5],[8.5,10.5],[10.5,12.5],[12.5,18.5],[18.5,21],[21,30],[30,45]], Method='filter' , Filt='FIR_filter'):
     """
     Aplica el analisis de modulacion de amplitud a una señal
     (por defecto a Delta, Theta, Alpha, Beta, Gamma).
