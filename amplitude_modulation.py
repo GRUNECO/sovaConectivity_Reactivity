@@ -11,7 +11,7 @@ import pandas as pd
 import os
 
 ####################### Internal libraries ####################################
-import linear_FIR_filter_v1 as lfir
+#import linear_FIR_filter_v1 as lfir
 
 ########################## My exception classes ###############################
 class Error(Exception):

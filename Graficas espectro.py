@@ -1,4 +1,5 @@
 from cmath import nan
+from matplotlib.cbook import flatten
 import pandas as pd 
 import seaborn as sns
 import numpy as np
@@ -10,25 +11,24 @@ import mne
 import copy
 from sovaflow.utils import createRaw
 from sovaharmony.postprocessing import get_spatial_filter,get_ics_power_derivatives
-import scipy.signal as signal
+import scipy.signal as scsignal
 from sovaflow.flow import fit_spatial_filter
+from pandas.core.common import flatten
 
-BIO_channels=pd.read_feather(r'E:\Academico\Universidad\Posgrado\Tesis\Paquetes\sovaConectivity_Reactivity\longitudinal_data_powers_long_CE_norm_channels.feather')
-BIO_components=pd.read_feather(r'E:\Academico\Universidad\Posgrado\Tesis\Paquetes\sovaConectivity_Reactivity\longitudinal_data_powers_long_CE_norm_components.feather')
 sgl = r"C:\Users\veroh\OneDrive - Universidad de Antioquia\Datos_MsC_Veronica\BIOMARCADORES\sub-CTR001\ses-V1\eeg\sub-CTR001_ses-V1_task-CE_eeg"
 file = r"C:\Users\veroh\OneDrive - Universidad de Antioquia\Datos_MsC_Veronica\BIOMARCADORES\derivatives\sovaharmony\sub-CTR001\ses-V1\eeg\sub-CTR001_ses-V1_task-CE_desc-reject[restCE]_eeg"
 filename = r"C:\Users\veroh\OneDrive - Universidad de Antioquia\Datos_MsC_Veronica\BIOMARCADORES\derivatives\sovaharmony\sub-CTR001\ses-V1\eeg\sub-CTR001_ses-V1_task-CE_desc-norm_eeg"
-s = mne.io.read_raw_brainvision(sgl + '.vhdr', verbose='error')
-r = mne.read_epochs(file + '.fif', verbose='error')
-raw = mne.read_epochs(filename + '.fif', verbose='error')
-ch_post = ['P2','P4','P1','POZ','PO3','PO6','PO7','P7','PO5','O1','P3','P8','OZ','PZ','O2','PO4','PO8','P6','P5']
-correct_montage = copy.deepcopy(ch_post)
-raw = raw.copy() 
-r = r.copy() 
-s = s.copy() 
-raw,correct_montage= organize_channels(raw,correct_montage)
-r,correct_montage= organize_channels(r,correct_montage)
-s,correct_montage= organize_channels(s,correct_montage)
+raw = mne.io.read_raw_brainvision(sgl + '.vhdr', verbose='error')
+preprocessing = mne.read_epochs(file + '.fif', verbose='error')
+norm = mne.read_epochs(filename + '.fif', verbose='error')
+ch = ['P2','P4','P1','POZ','PO3','PO6','PO7','P7','PO5','O1','P3','P8','OZ','PZ','O2','PO4','PO8','P6','P5']
+#correct_montage = copy.deepcopy(ch)
+#raw = raw.copy() 
+#preprocessing = preprocessing.copy() 
+#norm = norm.copy() 
+#raw,correct_montage= organize_channels(raw,correct_montage)
+#processing,correct_montage= organize_channels(preprocessing,correct_montage)
+#norm,correct_montage= organize_channels(norm,correct_montage)
 
 '''fig, ax = plt.subplots(3)
 s.plot_psd(ax=ax[0],average=True,fmax=30)
@@ -39,6 +39,12 @@ ax[1].set_title('PSD of Preprocessed data')
 ax[2].set_title('PSD of Normalized data')
 ax[2].set_xlabel('Frequency (Hz)')
 fig.set_tight_layout(True)'''
+
+def ch_roi(ch,raw):
+    correct_montage = copy.deepcopy(ch)
+    raw = raw.copy() 
+    raw,correct_montage= organize_channels(raw,correct_montage)
+    return raw
 
 def create_raw_ics(raw_epo):
     def_spatial_filter='58x25'
@@ -71,9 +77,37 @@ def create_raw_ics_c(raw_epo):
     signal_ics = createRaw(ics,signal_epo.info['sfreq']) 
     return signal_ics
 
-icss=create_raw_ics_c(s)
-icsr=create_raw_ics(r)
-icsraw=create_raw_ics(raw)
+def welch_pds(signal,roi,continuo=True):
+    ch_roi_signal=ch_roi(roi,signal)
+    if continuo:
+        ics_signal=create_raw_ics(ch_roi_signal)
+    else:
+        ics_signal=create_raw_ics_c(ch_roi_signal)
+    
+    ff, Pxx=scsignal.welch(ics_signal.get_data(), fs=signal.info['sfreq'],nperseg=signal.info['sfreq']*2, noverlap=signal.info['sfreq']/2)
+    return ff, Pxx
+
+def mean_Pxx_ff(ff,Pxx):
+    mean_end = []
+    mean_Pxx = []
+    for Fr in range(len(ff)):
+        for Px in range(len(Pxx)):
+            mean_Pxx.append(Pxx[Px][Fr])
+        l=list(flatten(mean_Pxx))
+        mean_end.append(np.mean(l))
+        mean_Pxx = []
+    return mean_end
+
+ff_raw, Pxx_raw = welch_pds(raw,ch,continuo=False)
+ff_preprocessing, Pxx_preprocessing = welch_pds(preprocessing,ch)
+ff_norm, Pxx_norm = welch_pds(norm,ch)
+mean_raw = mean_Pxx_ff(ff_raw, Pxx_raw)
+mean_preprocessing = mean_Pxx_ff(ff_preprocessing, Pxx_preprocessing)
+mean_norm = mean_Pxx_ff(ff_norm, Pxx_norm)
+
+icss=create_raw_ics_c(raw)
+icsr=create_raw_ics(preprocessing)
+icsraw=create_raw_ics(norm)
 
 fig, ax = plt.subplots(3)
 icss.plot_psd(ax=ax[0],average=True,fmin=1,fmax=30,picks=[24])
@@ -85,32 +119,52 @@ ax[2].set_title('PSD of Normalized data C25')
 ax[2].set_xlabel('Frequency (Hz)')
 fig.set_tight_layout(True)
 
-ffs, Pxxs=signal.welch(s.get_data(), fs=s.info['sfreq'],nperseg=s.info['sfreq']*2, noverlap=s.info['sfreq']/2)
-ffr, Pxxr=signal.welch(r._data[1], fs=r.info['sfreq'],nperseg=r.info['sfreq']*2, noverlap=r.info['sfreq']/2)
-ffraw, Pxxraw=signal.welch(raw._data[1], fs=raw.info['sfreq'],nperseg=raw.info['sfreq']*2, noverlap=raw.info['sfreq']/2)
+ffs, Pxxs=scsignal.welch(icss.get_data(), fs=s.info['sfreq'],nperseg=s.info['sfreq']*2, noverlap=s.info['sfreq']/2)
+ffr, Pxxr=scsignal.welch(icsr.get_data(), fs=r.info['sfreq'],nperseg=r.info['sfreq']*2, noverlap=r.info['sfreq']/2)
+ffraw, Pxxraw=scsignal.welch(icsraw.get_data(), fs=raw.info['sfreq'],nperseg=raw.info['sfreq']*2, noverlap=raw.info['sfreq']/2)
 
-mean_Pxxs = []
-mean_end = []
-for j in range(len(ffs)):
-    for i in range(len(Pxxs)):
-        mean_Pxxs.append(Pxxs[i][j])
-        mean_end.append(mean_Pxxs)
-        mean_Pxxs = []
-    if len(mean_end) > 1:
-       mean_end.append(mean_end.mean())
+def mean_Pxx_ff(ff,Pxx):
+    mean_end = []
+    mean_Pxx = []
+    for Fr in range(len(ff)):
+        for Px in range(len(Pxx)):
+            mean_Pxx.append(Pxx[Px][Fr])
+        l=list(flatten(mean_Pxx))
+        mean_end.append(np.mean(l))
+        mean_Pxx = []
+    return mean_end
 
-plt.plot(ffs,mean_end)
-plt.plot(ffr,Pxxr)
-plt.plot(ffraw,Pxxraw)
+mean_s = mean_Pxx_ff(ffs, Pxxs)
+mean_r = mean_Pxx_ff(ffr, Pxxr)
+mean_raw = mean_Pxx_ff(ffraw, Pxxraw)
+
+f, (ax1, ax2,ax3) = plt.subplots(3, 1,sharex=True, sharey=False)
+ax1.set_title('Original')
+ax1.plot(ffs,mean_s,color='c')
+ax2.set_title('Preprocessing')
+ax2.plot(ffr,mean_r,color='m')
+ax3.set_title('Normalizate')
+ax3.plot(ffraw,mean_raw,color='g')
+#plt.legend([ax1, ax2, ax3],["Original", "Preprocessing", "Normalizate"])
+#plt.yscale('log')
+#plt.ylim((pow(10,-18),pow(10,-4)) )
+#plt.yticks(color='w') 
+ax1.set_xlim(3,30)
+plt.show()
+
+
+
+
 
 dt = 0.01
-plt.psd(s.get_data(), s.info['sfreq'],dt)
-plt.psd(r._data[1], r.info['sfreq'],dt)
-plt.psd(raw._data[1], raw.info['sfreq'],dt)
+plt.psd(x=icss, fs=1000)
+plt.psd(x=icsr, fs=1000)
+plt.psd(x=icsraw, fs=1000)
 
 fig, ax = plt.subplots(2)
-r.ax.plot(scalings={'eeg':'auto'})
-raw.plot(scalings={'eeg':'auto'})
+icss.plot(scalings={'eeg':'auto'})
+icsr.plot(scalings={'eeg':'auto'})
+icsraw.plot(scalings={'eeg':'auto'})
 ax[0].set_title('Wica')
 ax[1].set_title('preprocessing and normalization')
 ax[1].set_xlabel('Frequency (Hz)')

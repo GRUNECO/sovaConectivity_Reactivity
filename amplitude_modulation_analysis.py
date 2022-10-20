@@ -15,7 +15,7 @@ from sklearn.model_selection import LeaveOneOut
 
 ####################### Internal libraries ####################################
 import amplitude_modulation
-import scalograms
+#import scalograms
 
 ############################## Functions ######################################
 def epochs_information(path, path_save, signal_key, id_group="g"):
